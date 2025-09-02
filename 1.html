@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>세븐나이츠 리버스 - 공성전 딜 사이클 빌더 (간단 버전)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --ink:#e6e9ef; --muted:#9aa4b2;
+    --line:#2a2f3a; --accent:#ff7043; --accent-2:#7aa2ff; --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:ui-sans-serif,system-ui,Segoe UI,Apple SD Gothic Neo,Inter,Roboto,Arial,Helvetica,sans-serif;
+       color:var(--ink); background:linear-gradient(180deg,#0b0d12,#10131a); min-height:100vh;}
+  header{max-width:1100px;margin:24px auto 8px;padding:0 16px}
+  h1{font-size:22px;margin:0 0 6px}
+  .muted{color:var(--muted)}
+  .wrap{max-width:1100px;margin:0 auto 32px;padding:0 16px; display:grid; gap:16px}
+  @media (min-width:980px){ .wrap{ grid-template-columns: 360px 1fr; } }
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .row{display:flex;align-items:center;gap:8px}
+  input[type="text"]{width:100%; background:#0d1016; border:1px solid var(--line); color:var(--ink);
+                     border-radius:10px; padding:10px 12px; outline:none}
+  .list{max-height:360px; overflow:auto; border:1px solid var(--line); border-radius:12px; padding:8px; margin-top:8px}
+  .char{display:flex;align-items:center; justify-content:space-between; gap:10px; padding:8px; border-radius:10px}
+  .char:hover{background:#121621}
+  .char .who{display:flex;align-items:center; gap:10px}
+  .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+          color:#111;font-weight:800}
+  .btn{background:var(--accent); color:#111; font-weight:700;border:none;border-radius:9px;padding:8px 10px; cursor:pointer}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:#0d1016; color:var(--ink); border:1px solid var(--line)}
+  .btn.danger{background:var(--danger); color:#fff}
+  .chips{display:flex; flex-wrap:wrap; gap:8px}
+  .chip{display:flex;align-items:center;gap:8px;background:#0d1016; border:1px solid var(--line); padding:6px 8px; border-radius:999px}
+  .chip .x{background:#0003;border:none;border-radius:50%;width:20px;height:20px;color:#fff;cursor:pointer}
+  .tabs{display:flex; gap:8px; margin-bottom:8px}
+  .tab{padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#0d1016; cursor:pointer}
+  .tab.active{background:var(--accent); color:#111; font-weight:800}
+  .palette{display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:10px}
+  .slot{display:flex; flex-direction:column; gap:6px; background:#0f1320; border:1px solid var(--line); border-radius:12px; padding:10px}
+  .slot .who{display:flex; align-items:center; gap:8px}
+  .skills{display:flex; gap:6px; flex-wrap:wrap}
+  .skill-btn{display:inline-flex; align-items:center; gap:6px; background:#152036; color:#cbd5e1; border:1px solid #22314c; border-radius:10px; padding:6px 8px; cursor:pointer}
+  .skill-icon{width:22px;height:22px;border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#111}
+  .seq{border:1px dashed var(--line); border-radius:12px; padding:10px; min-height:64px; display:flex; flex-wrap:wrap; gap:8px}
+  .step{display:flex;align-items:center; gap:8px; background:#0d1016; border:1px solid var(--line); padding:6px 8px; border-radius:10px; cursor:grab}
+  .step .n{background:#0a0e18; border:1px solid #1a2336; color:#93a3b8; border-radius:6px; width:26px;height:26px; display:flex; align-items:center; justify-content:center; font-size:12px}
+  .step .x{margin-left:2px}
+  .bar{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  .right-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px}
+  .small{font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>세나R 공성전 딜 사이클 빌더 (간단)</h1>
+  <div class="muted small">좌측에서 5명까지 선택 → 우측에서 라운드(1~3)별로 스킬 버튼 클릭해 순서를 쌓으세요. 드래그로 재정렬, X로 삭제, 같은 스킬 연속 허용.</div>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: character picker -->
+  <section class="card">
+    <div class="row">
+      <input id="search" type="text" placeholder="캐릭터 검색 (이름 일부 입력)" />
+      <button id="clearSearch" class="btn ghost">지우기</button>
+    </div>
+
+    <div class="chips" id="selectedBox" style="margin:10px 0"></div>
+
+    <div class="list" id="list"></div>
+  </section>
+
+  <!-- RIGHT: rounds & sequence -->
+  <section class="card">
+    <div class="right-head">
+      <div class="tabs" id="tabs"></div>
+      <div class="bar">
+        <button id="clearRound" class="btn ghost">현재 라운드 초기화</button>
+        <button id="clearAll" class="btn danger">전체 초기화</button>
+        <button id="exportBtn" class="btn">JSON 내보내기</button>
+        <label class="btn ghost" style="cursor:pointer">
+          JSON 불러오기
+          <input id="importFile" type="file" accept="application/json" style="display:none">
+        </label>
+      </div>
+    </div>
+
+    <div class="palette" id="palette"></div>
+
+    <div style="margin-top:10px">
+      <div class="muted small" style="margin-bottom:6px">라운드 <span id="roundLabel">1</span> 시퀀스</div>
+      <div class="seq" id="seq"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/** ====== Mock 캐릭터 DB (수백개 확장 가능) ====== */
+const CHAR_POOL = [
+  {id:'TEO', name:'태오', avatar:'#ffb300', s1:{name:'섬광 베기', color:'#ffd166'}, s2:{name:'참철파', color:'#fca311'}},
+  {id:'RIN', name:'린', avatar:'#7dd3fc', s1:{name:'빙결파동', color:'#60a5fa'}, s2:{name:'서릿발', color:'#38bdf8'}},
+  {id:'SPI', name:'스파이크', avatar:'#a3e635', s1:{name:'빙벽', color:'#86efac'}, s2:{name:'냉기난타', color:'#4ade80'}},
+  {id:'KAR', name:'카린', avatar:'#fda4af', s1:{name:'치유', color:'#fdba74'}, s2:{name:'가호', color:'#fca5a5'}},
+  {id:'JUP', name:'주피', avatar:'#c4b5fd', s1:{name:'번개화살', color:'#a78bfa'}, s2:{name:'뇌창', color:'#818cf8'}},
+  {id:'RUD', name:'루디', avatar:'#fca5a5', s1:{name:'수호격', color:'#f87171'}, s2:{name:'심판', color:'#ef4444'}},
+  {id:'KNI', name:'기사', avatar:'#c084fc', s1:{name:'찌르기', color:'#a855f7'}, s2:{name:'방패밀치기', color:'#8b5cf6'}},
+  {id:'ARC', name:'아처', avatar:'#93c5fd', s1:{name:'연사', color:'#60a5fa'}, s2:{name:'저격', color:'#3b82f6'}},
+  {id:'MAG', name:'메이지', avatar:'#f9a8d4', s1:{name:'불덩이', color:'#fb7185'}, s2:{name:'유성', color:'#f472b6'}},
+  {id:'MON', name:'몽크', avatar:'#86efac', s1:{name:'연타', color:'#34d399'}, s2:{name:'쇄도', color:'#10b981'}},
+  {id:'ASS', name:'어쌔신', avatar:'#fbbf24', s1:{name:'베기', color:'#f59e0b'}, s2:{name:'그림자습격', color:'#f97316'}},
+  {id:'PAL', name:'팔라딘', avatar:'#67e8f9', s1:{name:'제압', color:'#22d3ee'}, s2:{name:'심판의빛', color:'#06b6d4'}},
+  // … 필요하면 객체를 더 추가하세요.
+];
+
+// 상태
+const state = {
+  search: '',
+  team: [],          // 선택된 5명(캐릭터 id 배열)
+  round: 1,          // 1|2|3
+  schedule: { 1:[], 2:[], 3:[] } // 각 원소: {id:'TEO', skill:1|2}
+};
+
+// DOM
+const $ = sel => document.querySelector(sel);
+const list = $('#list');
+const selectedBox = $('#selectedBox');
+const search = $('#search');
+const clearSearch = $('#clearSearch');
+const tabs = $('#tabs');
+const palette = $('#palette');
+const seq = $('#seq');
+const roundLabel = $('#roundLabel');
+const clearRound = $('#clearRound');
+const clearAll = $('#clearAll');
+const exportBtn = $('#exportBtn');
+const importFile = $('#importFile');
+
+// 초기
+renderAll();
+
+// 이벤트 바인딩
+search.addEventListener('input', ()=>{ state.search = search.value.trim(); renderList(); });
+clearSearch.addEventListener('click', ()=>{ state.search=''; search.value=''; renderList(); });
+clearRound.addEventListener('click', ()=>{ state.schedule[state.round]=[]; renderSeq(); });
+clearAll.addEventListener('click', ()=>{
+  state.team=[]; state.schedule={1:[],2:[],3:[]}; state.round=1; renderAll();
+});
+exportBtn.addEventListener('click', exportJSON);
+importFile.addEventListener('change', importJSON);
+
+// 렌더링
+function renderAll(){
+  renderTabs();
+  renderList();
+  renderTeam();
+  renderPalette();
+  renderSeq();
+}
+function renderTabs(){
+  tabs.innerHTML = '';
+  [1,2,3].forEach(n=>{
+    const b = document.createElement('button');
+    b.className = 'tab'+(state.round===n?' active':'');
+    b.textContent = `라운드 ${n}`;
+    b.onclick = ()=>{ state.round=n; roundLabel.textContent=n; renderPalette(); renderSeq(); renderTabs(); };
+    tabs.appendChild(b);
+  });
+  roundLabel.textContent = state.round;
+}
+function renderList(){
+  const q = state.search.toLowerCase();
+  const pool = CHAR_POOL.filter(c => c.name.toLowerCase().includes(q));
+  list.innerHTML = '';
+  pool.forEach(ch=>{
+    const row = document.createElement('div');
+    row.className='char';
+    row.innerHTML = `
+      <div class="who">
+        ${avatarHTML(ch)}
+        <div>
+          <div><b>${ch.name}</b></div>
+          <div class="muted small">${ch.id}</div>
+        </div>
+      </div>
+      <div>
+        ${inTeam(ch.id)
+          ? `<button class="btn ghost" data-id="${ch.id}">제거</button>`
+          : `<button class="btn" data-id="${ch.id}" ${state.team.length>=5?'disabled':''}>선택</button>`
+        }
+      </div>`;
+    row.querySelector('button').onclick = (e)=>{
+      const id = e.currentTarget.getAttribute('data-id');
+      if(inTeam(id)){ removeFromTeam(id); }
+      else { addToTeam(id); }
+    };
+    list.appendChild(row);
+  });
+}
+function renderTeam(){
+  selectedBox.innerHTML = '';
+  state.team.forEach(id=>{
+    const ch = CHAR_POOL.find(c=>c.id===id);
+    const chip = document.createElement('div');
+    chip.className='chip';
+    chip.innerHTML = `${avatarHTML(ch)} <b>${ch.name}</b> <button class="x" data-id="${id}">×</button>`;
+    chip.querySelector('.x').onclick = (e)=>{ removeFromTeam(e.currentTarget.getAttribute('data-id')); };
+    selectedBox.appendChild(chip);
+  });
+}
+function renderPalette(){
+  palette.innerHTML = '';
+  state.team.forEach(id=>{
+    const ch = CHAR_POOL.find(c=>c.id===id);
+    const slot = document.createElement('div');
+    slot.className='slot';
+    slot.innerHTML = `
+      <div class="who">${avatarHTML(ch)} <div><b>${ch.name}</b><div class="muted small">${ch.id}</div></div></div>
+      <div class="skills">
+        <button class="skill-btn" data-id="${id}" data-s="1">${skillIcon(ch.s1, 'S1')} <span>${ch.s1.name}</span></button>
+        <button class="skill-btn" data-id="${id}" data-s="2">${skillIcon(ch.s2, 'S2')} <span>${ch.s2.name}</span></button>
+      </div>`;
+    slot.querySelectorAll('.skill-btn').forEach(b=>{
+      b.onclick = (e)=>{
+        const cid = e.currentTarget.getAttribute('data-id');
+        const s = parseInt(e.currentTarget.getAttribute('data-s'),10);
+        state.schedule[state.round].push({id:cid, skill:s});
+        renderSeq();
+      };
+    });
+    palette.appendChild(slot);
+  });
+}
+function renderSeq(){
+  seq.innerHTML = '';
+  state.schedule[state.round].forEach((st, idx)=>{
+    const ch = CHAR_POOL.find(c=>c.id===st.id);
+    const sk = st.skill===1 ? ch.s1 : ch.s2;
+    const el = document.createElement('div');
+    el.className='step';
+    el.setAttribute('draggable', 'true');
+    el.dataset.index = idx;
+    el.innerHTML = `
+      <div class="n">${idx+1}</div>
+      ${avatarHTML(ch, 26)}
+      <div class="skill-btn" style="cursor:default">${skillIcon(sk, 'S'+st.skill)} <span class="small" style="color:#cbd5e1">${sk.name}</span></div>
+      <button class="x">×</button>
+    `;
+    el.querySelector('.x').onclick = ()=>{ state.schedule[state.round].splice(idx,1); renderSeq(); };
+    // DnD
+    el.addEventListener('dragstart', dragStart);
+    el.addEventListener('dragover', dragOver);
+    el.addEventListener('drop', drop);
+    seq.appendChild(el);
+  });
+}
+
+/** ====== Team helpers ====== */
+function inTeam(id){ return state.team.includes(id); }
+function addToTeam(id){
+  if(state.team.length>=5) return;
+  if(!inTeam(id)) state.team.push(id);
+  renderList(); renderTeam(); renderPalette();
+}
+function removeFromTeam(id){
+  state.team = state.team.filter(v=>v!==id);
+  // 해당 캐릭터가 들어간 스케줄도 정리
+  [1,2,3].forEach(r=>{
+    state.schedule[r] = state.schedule[r].filter(st=>st.id!==id);
+  });
+  renderList(); renderTeam(); renderPalette(); renderSeq();
+}
+
+/** ====== Avatar & Skill UI ====== */
+function avatarHTML(ch, size=36){
+  const initials = ch.name.slice(0,2);
+  return `<div class="avatar" style="background:${ch.avatar}; width:${size}px; height:${size}px; font-size:${size>32?14:12}px">${initials}</div>`;
+}
+function skillIcon(skill, label){
+  return `<span class="skill-icon" style="background:${skill.color}">${label}</span>`;
+}
+
+/** ====== DnD ====== */
+let dragIndex = null;
+function dragStart(e){ dragIndex = parseInt(e.currentTarget.dataset.index,10); }
+function dragOver(e){ e.preventDefault(); }
+function drop(e){
+  e.preventDefault();
+  const target = e.currentTarget;
+  const to = parseInt(target.dataset.index,10);
+  if(isNaN(dragIndex) || isNaN(to) || dragIndex===to) return;
+  const arr = state.schedule[state.round];
+  const item = arr.splice(dragIndex,1)[0];
+  arr.splice(to,0,item);
+  dragIndex = null;
+  renderSeq();
+}
+
+/** ====== Import / Export ====== */
+function exportJSON(){
+  const data = JSON.stringify({ team: state.team, schedule: state.schedule }, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'raid-cycle.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importJSON(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const obj = JSON.parse(reader.result);
+      if(Array.isArray(obj.team) && obj.team.length<=5) state.team = obj.team;
+      if(obj.schedule && obj.schedule[1] && obj.schedule[2] && obj.schedule[3]) state.schedule = obj.schedule;
+      // 유효성: 팀에 없는 캐릭터는 스케줄에서 제거
+      [1,2,3].forEach(r=>{
+        state.schedule[r] = state.schedule[r].filter(st => state.team.includes(st.id));
+      });
+      state.round = 1;
+      renderAll();
+    }catch(err){
+      alert('JSON 형식이 올바르지 않습니다.');
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+</script>
+</body>
+</html>
